@@ -1,5 +1,7 @@
+CFLAGS = -std=gnu99
+
 relf: main.o
-	gcc main.o -o relf 
+	$(CC) main.o -o relf 
 
 clean:
 	rm *.o relf

@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define DUMP(x)                                                                \
   do {                                                                         \
@@ -60,9 +61,13 @@ void dump_stringtbl(unsigned char *str, Elf64_Shdr *shdr) {
   printf("\n");
 }
 
-void dump_shdr(Elf64_Shdr *shdr, int e_shnum) {
+void dump_shdr(Elf64_Ehdr *ehdr, Elf64_Shdr *shdr, int e_shnum) {
+  uint32_t strtbl_offset = shdr[ehdr->e_shstrndx].sh_offset;
+  char *buf = (char *)ehdr;
+  char *strtbl = &buf[strtbl_offset];
   for (int i = 0; i < e_shnum; i++, shdr++) {
-    printf("  index %d\n", i);
+    char *name = &strtbl[shdr->sh_name];
+    printf("  index %d: %s\n", i, name);
     DUMP(shdr->sh_name);
     DUMP(shdr->sh_type);
     DUMP(shdr->sh_flags);
@@ -78,9 +83,33 @@ void dump_shdr(Elf64_Shdr *shdr, int e_shnum) {
   printf("\n");
 }
 
-int main(int argc, const char *argv[]) {
-  const char *flag = argv[1];
-  const char *filename = argv[2];
+void usage() { printf("usage: relf [option] [file]\n"); }
+
+int main(int argc, char *argv[]) {
+  char mode;
+  char *filename;
+  const char *optstring = "hpsS";
+  int c;
+  while ((c = getopt(argc, argv, optstring)) != -1) {
+    switch (c) {
+    case 'h':
+    case 'p':
+    case 's':
+    case 'S':
+      mode = (char)c;
+      break;
+    default:
+      break;
+    }
+  }
+
+  if (argc == optind) {
+    usage();
+    return EXIT_FAILURE;
+  }
+
+  filename = argv[optind];
+
   FILE *fp = fopen(filename, "r");
   Elf64_Ehdr *ehdr;
   Elf64_Phdr *phdr;
@@ -96,7 +125,8 @@ int main(int argc, const char *argv[]) {
   phdr = (Elf64_Phdr *)(&buf[ehdr->e_phoff]);
   shdr = (Elf64_Shdr *)(&buf[ehdr->e_shoff]);
   int sh_name;
-  switch (flag[0]) {
+
+  switch (mode) {
   case 'h':
     printf("Elf file header(equivalent as readelf -h)\n");
     dump_ehdr(ehdr);
@@ -107,7 +137,7 @@ int main(int argc, const char *argv[]) {
     break;
   case 's':
     printf("Section header(equivalent as readelf -S)\n");
-    dump_shdr(shdr, ehdr->e_shnum);
+    dump_shdr(ehdr, shdr, ehdr->e_shnum);
     break;
   case 'S':
     printf("String table\n");
